@@ -1,0 +1,146 @@
+panel_iframe:
+  tasmoadmin:
+    title: "Tasmoadmin"
+    url: "http://192.168.1.135:8088/devices"
+    icon: mdi:router-wireless-settings
+  portainer:
+    title: "HA Portainer"
+    url: "http://192.168.1.135:9000/#!/2/docker/containers"
+    icon: mdi:docker
+    require_admin: true
+  agentdvr:
+    title: "Agent DVR"
+    url: "http://192.168.1.135:8090"
+    icon: mdi:cctv
+
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+  extra_module_url:
+    - /www/community/lovelace-card-mod/card-mod.js
+  themes:
+    nodemcu:
+      state-switch-active-color: cyan
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+python_script:
+
+mqtt:
+
+  sensor:
+   - name: "Basement_NodeMCU_E2EA27_WMPH"
+     unique_id: "tasmota_E2EA27_WMPH"
+     state_topic: "stat/tasmota_E2EA27/WMPH"
+     state_class: 'measurement'
+     unit_of_measurement: "mph"
+     value_template: "{{ value }}"
+   - name: "Basement_NodeMCU_E2EA27_LIGHT"
+     unique_id: "tasmota_E2EA27_LIGHT"
+     state_topic: "stat/tasmota_E2EA27/LIGHT"
+     device_class: "illuminance"
+     unit_of_measurement: "arb"
+     value_template: "{{ value }}"
+   - name: "Addition_Bedroom_NodeMCU_A43ACD_LIGHT"
+     unique_id: "tasmota_A43ACD_LIGHT"
+     state_topic: "stat/tasmota_A43ACD/LIGHT"
+     device_class: "illuminance"
+     unit_of_measurement: "arb"
+     value_template: "{{ value }}"
+   - name: "Plants_NodeMCU_A3CE19_LIGHT"
+     unique_id: "tasmota_A3CE19_LIGHT"
+     state_topic: "stat/tasmota_A3CE19/LIGHT"
+     device_class: "illuminance"
+     unit_of_measurement: "arb"
+     value_template: "{{ value }}"
+   - name: "pizero-z01-DS18x20-Temp"
+     unique_id: "pizero-z01-DS18x20-Temp"
+     state_topic: "rpiz01/garage/temperature"
+     device_class: "temperature"
+     unit_of_measurement: "F"
+     value_template: "{{ value_json.temperature }}"
+     availability_topic: "rpiz01/garage/LWT"
+     payload_available: "online"
+     payload_not_available: "offline"
+     qos: 0
+   - name: "pizero-z01-garage_lightsensed-value"
+     unique_id: "pizero-z01-garage_lightsensed-value"
+     state_topic: "rpiz01/garage/lightsensed"
+     device_class: "illuminance"
+     unit_of_measurement: "*"
+     value_template: "{{ value_json.light_sensed_value | round(3) }}"
+     availability_topic: "rpiz01/garage/LWT"
+     payload_available: "online"
+     payload_not_available: "offline"
+     qos: 0
+   - name: "pizero-z01-garage_pir-value"
+     unique_id: "pizero-z01-garage_pir-value"
+     state_topic: "rpiz01/garage/pir_activity"
+     device_class: "signal_strength"
+     unit_of_measurement: "*"
+     value_template: "{{ value_json.motion | round(3) }}"
+     availability_topic: "rpiz01/garage/LWT"
+     payload_available: "online"
+     payload_not_available: "offline"
+     qos: 0
+   - name: "pizero-z01-cpu-temp-c"
+     unique_id: "pizero-z01-cpu-temp-c"
+     state_topic: "rpiz01/garage/cpu_temperature"
+     device_class: "temperature"
+     unit_of_measurement: "C"
+     value_template: "{{ value_json.cpu_temp_c }}"
+     availability_topic: "rpiz01/garage/LWT"
+     payload_available: "online"
+     payload_not_available: "offline"
+     qos: 0
+
+  binary_sensor:
+   - name: "pizero-z01-garage_door-State"
+     unique_id: "pizero-z01-garage_door-State"
+     state_topic: "rpiz01/garage/garage_dr"
+     value_template: "{{ value_json.garage_dr }}"
+     payload_on: "open"
+     payload_off: "closed"
+     device_class: "opening"
+     availability_topic: "rpiz01/garage/LWT"
+     payload_available: "online"
+     payload_not_available: "offline"
+     qos: 0
+   - name: "pizero-z01-cpu-t-state"
+     unique_id: "pizero-z01-cpu-t-state"
+     state_topic: "rpiz01/garage/cpu_temperature"
+     value_template: "{{ value_json.cpu_hot }}"
+     payload_on: "True"
+     payload_off: "False"
+     device_class: "heat"
+     availability_topic: "rpiz01/garage/LWT"
+     payload_available: "online"
+     payload_not_available: "offline"
+     qos: 0
+   - name: "pizero-z01-pir-activity"
+     unique_id: "pizero-z01-pir-motion"
+     state_topic: "rpiz01/garage/pir_activity"
+     value_template: "{{ value_json.detected }}"
+     payload_on: "True"
+     payload_off: "False"
+     device_class: "motion"
+     availability_topic: "rpiz01/garage/LWT"
+     payload_available: "online"
+     payload_not_available: "offline"
+     qos: 0
+   - name: "pizero-z01-garage_lightsensed"
+     unique_id: "pizero-z01-garage_lightsensed"
+     state_topic: "rpiz01/garage/lightsensed"
+     value_template: "{{ value_json.light_sensed_state }}"
+     payload_on:  "True"
+     payload_off: "False"
+     device_class: "light"
+     availability_topic: "rpiz01/garage/LWT"
+     payload_available: "online"
+     payload_not_available: "offline"
+     qos: 0

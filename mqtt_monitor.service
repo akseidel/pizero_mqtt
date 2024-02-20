@@ -1,0 +1,10 @@
+[Unit]
+Description=The MQTT_Monitor python script
+
+[Service]
+User=piz
+ExecStart=/usr/bin/python3 /home/piz/documents/pizero_mqtt_monitor.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

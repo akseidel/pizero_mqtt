@@ -4,7 +4,13 @@ import glob
 import time
 from gpiozero import CPUTemperature
 import subprocess
+# from gpiozero.pins.native import NativeFactory
+from gpiozero.pins.pigpio import PiGPIOFactory
+from gpiozero import Device
 
+# setting the default pin_factory to be the enhanced pigpio
+# Device.pin_factory = NativeFactory()
+Device.pin_factory = PiGPIOFactory()
 
 def is_host_reachable(the_host):
     # Returns True if URL the_host is reachable, False otherwise.

@@ -19,6 +19,9 @@ import json
 import datetime
 from datetime import timedelta
 import sens_help
+# from gpiozero.pins.native import NativeFactory
+from gpiozero.pins.pigpio import PiGPIOFactory
+from gpiozero import Device
 from gpiozero import MotionSensor
 from gpiozero import Button
 from gpiozero import LightSensor
@@ -26,6 +29,9 @@ from apscheduler.schedulers.background import BlockingScheduler
 import time
 import argparse
 
+# setting the default pin_factory to be the enhanced pigpio
+# Device.pin_factory = NativeFactory()
+Device.pin_factory = PiGPIOFactory()
 
 monitor_schedule = BlockingScheduler()
 
@@ -141,7 +147,7 @@ ds18x20_poll_int = df_ds18x20_poll_int
 garage_dr_sens = Button(pin=dp_dr,
                         pull_up=None,
                         active_state=False,
-                        bounce_time=0.5
+                        bounce_time=0.25
                         )
 garage_dr_poll_int = df_garage_dr_poll_int
 # The apscheduler and gpiozero events will be used for the PIR motion detector.

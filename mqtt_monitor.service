@@ -1,5 +1,8 @@
 [Unit]
 Description=The MQTT_Monitor python script
+Requires=multi-user.target
+After=multi-user.target
+AllowIsolate=yes
 
 [Service]
 User=piz

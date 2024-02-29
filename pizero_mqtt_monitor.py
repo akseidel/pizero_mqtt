@@ -28,8 +28,11 @@ from gpiozero import LightSensor
 from apscheduler.schedulers.background import BlockingScheduler
 import time
 import argparse
+import subprocess
 
 # setting the default pin_factory to be the enhanced pigpio
+# note: the pigpiod daemon must be running as a service
+# ie sudo systemctl enable pigpiod
 # Device.pin_factory = NativeFactory()
 Device.pin_factory = PiGPIOFactory()
 
@@ -57,6 +60,7 @@ tp_lt = tp_this_dev + 'lightsensed'
 tp_pir_motion = tp_this_dev + 'pir_motion'
 tp_cpu_t_state = tp_this_dev + 'cpu_temperature'
 tp_pir_activity = tp_this_dev + 'pir_activity'
+tp_wifi = tp_this_dev + 'wifi'
 
 # Default data gpio numbers.
 # Note: The temp sensor is 1-wire. 1-wire data is set up outside the program.
@@ -76,6 +80,7 @@ df_ldr_poll_int: int = 66
 df_pizero_cpu_poll_int: int = 30
 df_pir_poll_int: int = 90
 df_still_alive_int: int = 62
+df_iw_int: int = 60
 
 
 def process_any_arguments() -> None:
@@ -292,11 +297,42 @@ def snd_pir_state():
         raise error
 
 
+def snd_wifi_strength():
+    try:
+        # CalledProcessError
+        # wifi signal dBm
+        cmd = "iw dev wlan0 station dump | grep signal: | cut -d' ' -f3"
+        iw_dbm = subprocess.check_output(cmd, shell=True).decode("utf-8").translate({ord(i): None for i in "\n\t"})
+        # wifi connected time seconds
+        cmd = "iw dev wlan0 station dump | grep 'connected time' | cut -d' ' -f2 | cut -d'\t' -f2"
+        iw_ctm = subprocess.check_output(cmd, shell=True).decode("utf-8").translate({ord(i): None for i in "\n\t"})
+
+        if en_out:
+            print(f'WiFi signal strength: {iw_dbm} dBm')
+            print(f'WiFi connected time: {iw_ctm} seconds')
+
+        # payload
+        iw_pld = {
+            "time": datetime.datetime.now(),
+            "client_id": client_id,
+            "iw_dbm": iw_dbm,
+            "iw_ctm": iw_ctm
+        }
+        # payload to JSON
+        pld_wifi = json.dumps(iw_pld, default=str)
+        mqttc.publish(topic=tp_wifi, payload=pld_wifi, retain=True, qos=0)
+
+    except subprocess.CalledProcessError as error:
+        do_msg("Exception error reading wifi state.")
+        raise error
+
+
 def startup_reads():
     snd_temp()
     snd_dr_state()
     snd_pizero_cpu_state()
     snd_lt_sense()
+    snd_wifi_strength()
 
 
 def device_setups():
@@ -314,6 +350,8 @@ def device_setups():
     monitor_schedule.add_job(snd_pizero_cpu_state, 'interval', seconds=pizero_cpu_poll_int)
     monitor_schedule.add_job(snd_lt_sense, 'interval', seconds=ldr_poll_int)
     monitor_schedule.add_job(snd_pir_state, 'interval', seconds=pir_poll_int)
+    monitor_schedule.add_job(snd_wifi_strength, 'interval', seconds=df_iw_int)
+
     # A patch keeping the LWT 'online'. The mqtt broker marks the subscription offline when
     # the pizero takes too long to wifi reconnect after it happens to lose wifi service. There
     # might be other reasons why the broker marks the subscription offline.

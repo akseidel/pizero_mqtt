@@ -101,6 +101,26 @@ mqtt:
      payload_available: "online"
      payload_not_available: "offline"
      qos: 0
+   - name: "pizero-z01-wifi-signal"
+     unique_id: "pizero-z01-wifi-signal"
+     state_topic: "rpiz01/garage/wifi"
+     device_class: "signal_strength"
+     unit_of_measurement: "dBm"
+     value_template: "{{ value_json.iw_dbm }}"
+     availability_topic: "rpiz01/garage/LWT"
+     payload_available: "online"
+     payload_not_available: "offline"
+     qos: 0
+   - name: "pizero-z01-wifi-tconnect"
+     unique_id: "pizero-z01-wifi-tconnect"
+     state_topic: "rpiz01/garage/wifi"
+     device_class: "duration"
+     unit_of_measurement: "sec"
+     value_template: "{{ value_json.iw_ctm }}"
+     availability_topic: "rpiz01/garage/LWT"
+     payload_available: "online"
+     payload_not_available: "offline"
+     qos: 0
 
   binary_sensor:
    - name: "pizero-z01-garage_door-State"

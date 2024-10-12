@@ -8,11 +8,9 @@ import subprocess
 from gpiozero.pins.pigpio import PiGPIOFactory
 from gpiozero import Device
 
+# setting the default pin_factory to be the enhanced pigpio
 # Device.pin_factory = NativeFactory()
-# Setting the default pin_factory to be the enhanced pigpio instead of native.
-# Doing so requires the pigpiod service already running.
 Device.pin_factory = PiGPIOFactory()
-
 
 def is_host_reachable(the_host):
     # Returns True if URL the_host is reachable, False otherwise.
@@ -62,8 +60,7 @@ class TheDS18x20:
 
     def read_temp_f(self):
         lines = self.read_temp_raw()
-        #if lines is not []
-        if lines:
+        if lines is not None:
             while lines[0].strip()[-3:] != 'YES':
                 time.sleep(0.2)
                 lines = self.read_temp_raw()
@@ -74,7 +71,6 @@ class TheDS18x20:
                 temp_f = temp_c * 9.0 / 5.0 + 32.0
                 temp_f = '{0:.1f}'.format(temp_f)
                 return temp_f
-        # Returns None when DS18x20 is missing.
 
 
 class CPUTempState:

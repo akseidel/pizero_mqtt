@@ -18,6 +18,9 @@ import paho.mqtt.client as mqtt
 import json
 import datetime
 from datetime import timedelta
+import psutil
+import socket
+from collections import OrderedDict
 import sens_help
 # from gpiozero.pins.native import NativeFactory
 from gpiozero.pins.pigpio import PiGPIOFactory
@@ -25,6 +28,7 @@ from gpiozero import Device
 from gpiozero import MotionSensor
 from gpiozero import Button
 from gpiozero import LightSensor
+from gpiozero import LED
 from apscheduler.schedulers.background import BlockingScheduler
 import time
 import argparse
@@ -51,6 +55,8 @@ en_out = False  # enable output for debug purposes
 # Establish a client_id
 client_id = this_hostname
 
+network_interface_name = None
+
 # set topics for each sensor
 tp_this_dev = 'rpiz01/garage/'
 tp_avail_st = tp_this_dev + 'LWT'
@@ -62,6 +68,7 @@ tp_cpu_t_state = tp_this_dev + 'cpu_temperature'
 tp_pir_a_activity = tp_this_dev + 'pir_a_activity'
 tp_pir_b_activity = tp_this_dev + 'pir_b_activity'
 tp_wifi = tp_this_dev + 'wifi'
+tp_device_ip = tp_this_dev + 'device_ip'
 
 # Default data gpio numbers.
 # Note: The temp sensor is 1-wire. 1-wire data is set up outside the program.
@@ -69,6 +76,7 @@ dp_lt = 23  # LDR
 dp_pir_a = 24  # PIR A
 dp_pir_b = 11  # PIR B
 dp_dr = 27  # Door (a reed switch seeing a strong magnet)
+dp_wifi_state_led = 20   # wifi state LED pin
 
 # Default pir_a settings
 pir_a_queue_len = 1
@@ -156,6 +164,10 @@ mqttc.connect(host=mqtt_broker_url, port=1883, keepalive=90)
 ds18x20 = sens_help.TheDS18x20()
 ds18x20_poll_int = df_ds18x20_poll_int
 
+# wifi state LED
+wifi_LED = LED(dp_wifi_state_led)
+wifi_LED.off()
+
 # The apscheduler and gpiozero events will be used for the garage dr.
 garage_dr_sens = Button(pin=dp_dr,
                         pull_up=None,
@@ -221,6 +233,26 @@ def snd_pizero_cpu_state():
 
     except Exception as error:
         do_msg("Exception error reading dr state.")
+        raise error
+
+
+def snd_ip():
+    try:
+        device_ip = get_ip(network_interface_name)
+        if en_out:
+            print(f'This ip: {device_ip} F - {datetime.datetime.now()}')
+
+        # payload
+        ip_pld = {
+            "time": datetime.datetime.now(),
+            "device_ip": device_ip
+        }
+        # payload to JSON
+        pld_ip = json.dumps(ip_pld, default=str)
+        mqttc.publish(topic=tp_device_ip, payload=pld_ip, retain=True, qos=0)
+
+    except Exception as error:
+        do_msg("Exception error reading ip address.")
         raise error
 
 
@@ -367,6 +399,48 @@ def snd_wifi_strength():
         raise error
 
 
+# -- functions for getting ip address
+def find_single_ipv4_address(addrs):
+    for addr in addrs:
+        if addr.family == socket.AddressFamily.AF_INET:  # IPv4
+            return addr.address
+
+
+def get_ipv4_address(interface_name=None):
+    if_addrs = psutil.net_if_addrs()
+
+    if isinstance(interface_name, str) and interface_name in if_addrs:
+        addrs = if_addrs.get(interface_name)
+        address = find_single_ipv4_address(addrs)
+        return address if isinstance(address, str) else "Off LAN"
+    else:
+        if_stats = psutil.net_if_stats()
+        # remove loopback
+        if_stats_filtered = {key: if_stats[key] for key, stat in if_stats.items() if "loopback" not in stat.flags}
+        # sort interfaces by
+        # 1. Up/Dow
+        # 2. Duplex mode (full: 2, half: 1, unknown: 0)
+        if_names_sorted = [stat[0] for stat in
+                           sorted(if_stats_filtered.items(), key=lambda x: (x[1].isup, x[1].duplex), reverse=True)]
+        if_addrs_sorted = OrderedDict((key, if_addrs[key]) for key in if_names_sorted if key in if_addrs)
+
+        for _, addrs in if_addrs_sorted.items():
+            address = find_single_ipv4_address(addrs)
+            if isinstance(address, str):
+                return address
+
+        return "Off LAN"
+
+
+def get_ip(netwrk_int_name):
+    ip_state = get_ipv4_address(netwrk_int_name)
+    if ip_state == 'Off LAN':
+        wifi_LED.off()
+    else:
+        wifi_LED.blink(1,1)
+    return "%s" % ip_state
+
+
 def startup_reads():
     snd_temp()
     snd_dr_state()
@@ -394,6 +468,7 @@ def device_setups():
     monitor_schedule.add_job(snd_pir_a_state, 'interval', seconds=pir_a_poll_int)
     monitor_schedule.add_job(snd_pir_b_state, 'interval', seconds=pir_b_poll_int)
     monitor_schedule.add_job(snd_wifi_strength, 'interval', seconds=df_iw_int)
+    monitor_schedule.add_job(snd_ip, 'interval', seconds=df_iw_int)
 
     # A patch keeping the LWT 'online'. The mqtt broker marks the subscription offline when
     # the pizero takes too long to wifi reconnect after it happens to lose wifi service. There

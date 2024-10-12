@@ -59,26 +59,34 @@ tp_temp = tp_this_dev + 'temperature'
 tp_lt = tp_this_dev + 'lightsensed'
 tp_pir_motion = tp_this_dev + 'pir_motion'
 tp_cpu_t_state = tp_this_dev + 'cpu_temperature'
-tp_pir_activity = tp_this_dev + 'pir_activity'
+tp_pir_a_activity = tp_this_dev + 'pir_a_activity'
+tp_pir_b_activity = tp_this_dev + 'pir_b_activity'
 tp_wifi = tp_this_dev + 'wifi'
 
 # Default data gpio numbers.
 # Note: The temp sensor is 1-wire. 1-wire data is set up outside the program.
-dp_lt = 23   # LDR
-dp_pir = 24  # PIR
-dp_dr = 27   # Door (a reed switch seeing a strong magnet)
+dp_lt = 23  # LDR
+dp_pir_a = 24  # PIR A
+dp_pir_b = 11  # PIR B
+dp_dr = 27  # Door (a reed switch seeing a strong magnet)
 
-# Default pir settings
-pir_queue_len = 1
-pir_poll_rate = 10
-pir_thresh = 0.5
+# Default pir_a settings
+pir_a_queue_len = 1
+pir_a_poll_rate = 10
+pir_a_thresh = 0.5
+
+# Default pir_b settings
+pir_b_queue_len = 1
+pir_b_poll_rate = 10
+pir_b_thresh = 0.5
 
 # Default poll rate seconds
 df_ds18x20_poll_int: int = 60
 df_garage_dr_poll_int: int = 60
 df_ldr_poll_int: int = 66
 df_pizero_cpu_poll_int: int = 30
-df_pir_poll_int: int = 90
+df_pir_a_poll_int: int = 90
+df_pir_b_poll_int: int = 90
 df_still_alive_int: int = 62
 df_iw_int: int = 60
 
@@ -155,16 +163,26 @@ garage_dr_sens = Button(pin=dp_dr,
                         bounce_time=0.25
                         )
 garage_dr_poll_int = df_garage_dr_poll_int
-# The apscheduler and gpiozero events will be used for the PIR motion detector.
-pir = MotionSensor(pin=dp_pir,
-                   pull_up=None,
-                   queue_len=pir_queue_len,
-                   active_state=True,
-                   sample_rate=pir_poll_rate,
-                   threshold=pir_thresh,
-                   partial=False
-                   )
-pir_poll_int = df_pir_poll_int
+# The apscheduler and gpiozero events will be used for the PIR motion detectors.
+pir_a = MotionSensor(pin=dp_pir_a,
+                     pull_up=None,
+                     queue_len=pir_a_queue_len,
+                     active_state=True,
+                     sample_rate=pir_a_poll_rate,
+                     threshold=pir_a_thresh,
+                     partial=False
+                     )
+pir_a_poll_int = df_pir_a_poll_int
+
+pir_b = MotionSensor(pin=dp_pir_b,
+                     pull_up=None,
+                     queue_len=pir_b_queue_len,
+                     active_state=True,
+                     sample_rate=pir_b_poll_rate,
+                     threshold=pir_b_thresh,
+                     partial=False
+                     )
+pir_b_poll_int = df_pir_b_poll_int
 
 ldr = LightSensor(pin=dp_lt,
                   queue_len=5,
@@ -275,22 +293,44 @@ def snd_lt_sense():
         raise error
 
 
-def snd_pir_state():
+def snd_pir_a_state():
     try:
         if timedelta(seconds=time.monotonic() - st_t).total_seconds() > 60.0:
             if en_out:
-                print(f'Garage PIR motion: {pir.is_active} - {datetime.datetime.now()}')
+                print(f'Garage PIR_A motion: {pir_a.is_active} - {datetime.datetime.now()}')
 
             # payload
             motion_pld = {
                 "time": datetime.datetime.now(),
                 "client_id": client_id,
-                "motion": pir.value,
-                "detected": pir.is_active
+                "motion": pir_a.value,
+                "detected": pir_a.is_active
             }
             # payload to JSON
             pld_pir_activity = json.dumps(motion_pld, default=str)
-            mqttc.publish(topic=tp_pir_activity, payload=pld_pir_activity, retain=True, qos=0)
+            mqttc.publish(topic=tp_pir_a_activity, payload=pld_pir_activity, retain=True, qos=0)
+
+    except Exception as error:
+        do_msg("Exception error reading PIR state.")
+        raise error
+
+
+def snd_pir_b_state():
+    try:
+        if timedelta(seconds=time.monotonic() - st_t).total_seconds() > 60.0:
+            if en_out:
+                print(f'Garage PIR_B motion: {pir_b.is_active} - {datetime.datetime.now()}')
+
+            # payload
+            motion_pld = {
+                "time": datetime.datetime.now(),
+                "client_id": client_id,
+                "motion": pir_b.value,
+                "detected": pir_b.is_active
+            }
+            # payload to JSON
+            pld_pir_activity = json.dumps(motion_pld, default=str)
+            mqttc.publish(topic=tp_pir_b_activity, payload=pld_pir_activity, retain=True, qos=0)
 
     except Exception as error:
         do_msg("Exception error reading PIR state.")
@@ -337,8 +377,10 @@ def startup_reads():
 
 def device_setups():
     # Register the gpiozero state change callbacks.
-    pir.when_activated = snd_pir_state
-    pir.when_deactivated = snd_pir_state
+    pir_a.when_activated = snd_pir_a_state
+    pir_a.when_deactivated = snd_pir_a_state
+    pir_b.when_activated = snd_pir_b_state
+    pir_b.when_deactivated = snd_pir_b_state
     garage_dr_sens.when_activated = snd_dr_state
     garage_dr_sens.when_deactivated = snd_dr_state
     ldr.when_dark = snd_lt_sense
@@ -349,7 +391,8 @@ def device_setups():
     monitor_schedule.add_job(snd_dr_state, 'interval', seconds=garage_dr_poll_int)
     monitor_schedule.add_job(snd_pizero_cpu_state, 'interval', seconds=pizero_cpu_poll_int)
     monitor_schedule.add_job(snd_lt_sense, 'interval', seconds=ldr_poll_int)
-    monitor_schedule.add_job(snd_pir_state, 'interval', seconds=pir_poll_int)
+    monitor_schedule.add_job(snd_pir_a_state, 'interval', seconds=pir_a_poll_int)
+    monitor_schedule.add_job(snd_pir_b_state, 'interval', seconds=pir_b_poll_int)
     monitor_schedule.add_job(snd_wifi_strength, 'interval', seconds=df_iw_int)
 
     # A patch keeping the LWT 'online'. The mqtt broker marks the subscription offline when

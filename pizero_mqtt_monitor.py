@@ -437,7 +437,7 @@ def get_ip(netwrk_int_name):
     if ip_state == 'Off LAN':
         wifi_LED.off()
     else:
-        wifi_LED.blink(1,1)
+        wifi_LED.blink(1,4)
     return "%s" % ip_state
 
 
